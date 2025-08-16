@@ -7,7 +7,7 @@
   <meta name="description" content="Stories, strategies, and motivations of entrepreneurs shaping industries in Germany and beyond." />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    :root { --brand: #0ea5e9; }
+    :root { --brand: #1260e6; }
     .brand { color: var(--brand); }
     .bg-brand { background-color: var(--brand); }
     .ring-brand { --tw-ring-color: var(--brand); }
@@ -46,10 +46,9 @@
         </div>
       </div>
 
-      <!-- FIXED: let the Buzzsprout player size itself; no 16:9 cropping -->
+      <!-- Buzzsprout player auto-sizes; large list view -->
       <div class="rounded-2xl border border-neutral-200 overflow-hidden shadow-sm bg-white">
         <div id="bzplayer" class="w-full"></div>
-        <!-- Use player=large to show more of the list. You can switch to small if you prefer. -->
         <script async src="https://www.buzzsprout.com/2392678.js?container_id=bzplayer&player=large"></script>
       </div>
     </div>
@@ -144,7 +143,6 @@
       statusEl.classList.add('hidden');
       gridEl.innerHTML = '';
 
-      // ONLY use the Vercel function now (cleaner & reliable)
       const endpoint = '/api/rss';
       let xmlText = null;
       try { xmlText = await fetchText(endpoint); } catch (e) {}
