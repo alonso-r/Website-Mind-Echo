@@ -135,6 +135,10 @@
     const statusEl = document.getElementById('feed-status');
     const gridEl = document.getElementById('episodes-grid');
 
+    // Map of per-episode artwork scraped from the Buzzsprout embed (title -> image URL)
+    const EMBED_ARTWORKS = new Map();
+    const normTitle = (s) => (s || '').toLowerCase().replace(/\s+/g,' ').trim();
+
     async function fetchText(url) {
       const res = await fetch(url);
       if (!res.ok) throw new Error('Network response was not ok');
@@ -205,21 +209,29 @@
             } catch (e) {}
           }
         }
+        if (!imageUrl) {
+          const art = EMBED_ARTWORKS.get(normTitle(title));
+          if (art) imageUrl = art;
+        }
         if (!imageUrl) imageUrl = channelImage;
 
         // Card
         const card = document.createElement('article');
         card.className = 'rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm flex flex-col';
 
-        if (imageUrl) {
-          const imgWrap = document.createElement('div');
-          imgWrap.className = 'aspect-square w-full bg-neutral-100';
-          imgWrap.innerHTML = `<img src="${imageUrl}" alt="${title} artwork" class="w-full h-full object-cover" loading="lazy">`;
-          card.appendChild(imgWrap);
-        }
+        const topRow = document.createElement('div');
+        topRow.className = 'p-5 flex gap-4 items-start';
+
+        const thumb = document.createElement('div');
+        thumb.className = 'w-24 h-24 min-w-[6rem] rounded-xl overflow-hidden bg-neutral-100 flex-shrink-0';
+        thumb.innerHTML = imageUrl
+          ? `<img src="${imageUrl}" alt="${title} artwork" class="w-full h-full object-cover" loading="lazy">`
+          : '';
+        topRow.appendChild(thumb);
 
         const body = document.createElement('div');
-        body.className = 'p-5 flex-1 flex flex-col';
+        body.className = 'flex-1 flex flex-col';
+        topRow.appendChild(body);
         body.innerHTML = `
           <a href="${link}" target="_blank" rel="noopener" class="block">
             <h3 class="text-lg font-semibold line-clamp-2 hover:underline decoration-neutral-300 hover:decoration-transparent">${title}</h3>
@@ -259,7 +271,7 @@
           });
         }
 
-        card.appendChild(body);
+        card.appendChild(topRow);
         card.appendChild(playerWrap);
         gridEl.appendChild(card);
       });
@@ -271,12 +283,32 @@
     try { const params = new URLSearchParams(location.search); if (params.get('submitted') === '1') { const fs = document.getElementById('form-status'); if (fs) fs.classList.remove('hidden'); } } catch(e) {}
 
     // Hide teaser episode in Buzzsprout embed (best-effort)
-    (function hideInBuzzsproutPlayer(){
+    (function enhanceBuzzsproutEmbed(){
       const container = document.getElementById('bzplayer');
       if (!container) return;
       const HIDE_TITLES = ['teaser'];
       const matches = (txt) => HIDE_TITLES.some(t => txt.includes(t));
+
+      // Collect per-episode artwork from the embed and store in EMBED_ARTWORKS
+      const collectArtworks = () => {
+        try {
+          container.querySelectorAll('[data-file-name],[original-url]').forEach(el => {
+            const url = el.getAttribute('data-file-name') || el.getAttribute('original-url');
+            if (!url) return;
+            const row = el.closest('li, .episode, .buzzsprout-player-episode, .bsp-episode, .buzzsprout-episode') || el.parentElement;
+            let title = '';
+            if (row) {
+              const tEl = row.querySelector('h1,h2,h3,h4,.title,a');
+              title = (tEl?.textContent || row.textContent || '').trim();
+            }
+            title = normTitle(title).slice(0,140);
+            if (title) EMBED_ARTWORKS.set(title, url);
+          });
+        } catch(e) { /* ignore */ }
+      };
+
       const scan = () => {
+        // Hide teaser rows
         const all = container.querySelectorAll('*');
         all.forEach(node => {
           const txt = (node.textContent || '').toLowerCase();
@@ -285,7 +317,9 @@
             if (row) row.style.display = 'none';
           }
         });
+        collectArtworks();
       };
+
       const obs = new MutationObserver(scan);
       obs.observe(container, { childList: true, subtree: true });
       scan();
