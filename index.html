@@ -156,9 +156,22 @@
 
       const parser = new DOMParser();
       const xml = parser.parseFromString(xmlText, 'application/xml');
-      const items = Array.from(xml.querySelectorAll('item'));
+      let items = Array.from(xml.querySelectorAll('item'));
+
+      // Hide specific episodes (by title match or GUID)
+      const HIDE_TITLES = ['teaser']; // lowercase match; add more strings as needed
+      const HIDE_GUIDS = []; // add exact GUID strings to hide specific items
+
+      items = items.filter((item) => {
+        const t = (item.querySelector('title')?.textContent || '').toLowerCase();
+        const guid = (item.querySelector('guid')?.textContent || '').trim();
+        const byTitle = HIDE_TITLES.some(x => x && t.includes(x));
+        const byGuid = HIDE_GUIDS.length ? HIDE_GUIDS.includes(guid) : false;
+        return !(byTitle || byGuid);
+      });
+
       if (!items.length) {
-        statusEl.textContent = 'No episodes found in the RSS feed.';
+        statusEl.textContent = 'No episodes to display.';
         statusEl.className = 'mb-6 text-sm text-neutral-600';
         statusEl.classList.remove('hidden');
         return;
@@ -208,6 +221,27 @@
     }
 
     loadFeed();
+
+    // Also hide teaser in the Buzzsprout embed player (best-effort)
+    (function hideInBuzzsproutPlayer(){
+      const container = document.getElementById('bzplayer');
+      if (!container) return;
+      const HIDE_TITLES = ['teaser']; // must be lowercase
+      const matches = (txt) => HIDE_TITLES.some(t => txt.includes(t));
+      const scan = () => {
+        const all = container.querySelectorAll('*');
+        all.forEach(node => {
+          const txt = (node.textContent || '').toLowerCase();
+          if (matches(txt)) {
+            const row = node.closest('li, .episode, .buzzsprout-player-episode, .bsp-episode, .buzzsprout-episode');
+            if (row) row.style.display = 'none';
+          }
+        });
+      };
+      const obs = new MutationObserver(scan);
+      obs.observe(container, { childList: true, subtree: true });
+      scan();
+    })();
 
     // Smooth scroll for same-page links
     document.querySelectorAll('a[href^="#"]').forEach(a => {
