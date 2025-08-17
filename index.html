@@ -147,6 +147,21 @@
     // Map of per-episode artwork scraped from the Buzzsprout embed (title -> image URL)
     const EMBED_ARTWORKS = new Map();
     const normTitle = (s) => (s || '').toLowerCase().replace(/\s+/g,' ').trim();
+    // Apply embed artwork to already-rendered cards
+function applyEmbedArtworks(){
+  try {
+    gridEl.querySelectorAll('article').forEach(card => {
+      const title = card.querySelector('h3')?.textContent || '';
+      const art = EMBED_ARTWORKS.get(normTitle(title));
+      if (!art) return;
+      const img = card.querySelector('img');
+      if (img && img.getAttribute('src') !== art) {
+        img.setAttribute('src', art);
+      }
+    });
+  } catch(e) {}
+}
+
 
     // Apply embed artwork to already-rendered cards (after the embed loads)
     function applyEmbedArtworks(){
