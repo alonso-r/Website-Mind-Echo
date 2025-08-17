@@ -193,10 +193,10 @@
 
         // Episode artwork: try several sources (per-episode first)
         let imageUrl = '';
-        const itunesImg = item.querySelector('itunes\:image')?.getAttribute('href');
-        const mediaUrl = item.querySelector('media\:thumbnail')?.getAttribute('url') || item.querySelector('media\:content')?.getAttribute('url');
+        const itunesImg = item.querySelector('itunes\\:image')?.getAttribute('href');
+        const mediaUrl = item.querySelector('media\\:thumbnail')?.getAttribute('url') || item.querySelector('media\\:content')?.getAttribute('url');
         if (itunesImg) imageUrl = itunesImg; else if (mediaUrl) imageUrl = mediaUrl; else {
-          const htmlBlob = item.querySelector('content\:encoded')?.textContent || item.querySelector('description')?.textContent || '';
+          const htmlBlob = item.querySelector('content\\:encoded')?.textContent || item.querySelector('description')?.textContent || '';
           if (htmlBlob) {
             try {
               const htmlDoc = new DOMParser().parseFromString(htmlBlob, 'text/html');
