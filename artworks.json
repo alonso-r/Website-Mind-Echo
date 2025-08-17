@@ -1,0 +1,8 @@
+{
+  "byGuid": {
+    // "PASTE_GUID_HERE": "/artworks/episode-1.jpg"
+  },
+  "byTitle": [
+    { "match": "Episode #1", "image": "/artworks/episode-1.jpg" }
+  ]
+}
