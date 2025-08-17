@@ -2,7 +2,8 @@
   "byGuid": {},
   "byTitle": [
     { "match": "Combining Purpose with Profit", "image": "/artworks/episode-1.jpg" },
-    { "match": "From Corporate Life",               "image": "/artworks/episode-2.jpg" },
-    { "match": "How AI Businesses",                  "image": "/artworks/episode-3.jpg" }
+    { "match": "Why Buy When You Can Rent?",    "image": "/artworks/episode-2.jpg" },
+    { "match": "Digitalizing Career Fairs",     "image": "/artworks/episode-3.jpg" },
+    { "match": "Simplifying Your Move to Germany", "image": "/artworks/episode-4.jpg" }
   ]
 }
