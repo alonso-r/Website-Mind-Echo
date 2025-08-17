@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Mind Echo Podcast</title>
   <meta name="description" content="Stories, strategies, and motivations of entrepreneurs shaping industries in Germany and beyond." />
+  <link rel="canonical" href="https://www.mindecho.net/" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root { --brand: #1260e6; }
@@ -93,7 +94,7 @@
         <form id="contact-form" action="https://formsubmit.co/contact.alonsorondon@gmail.com" method="POST" class="mt-6 bg-neutral-50 border border-neutral-200 rounded-2xl p-6 shadow-sm">
           <input type="hidden" name="_subject" value="Mind Echo: New contact form submission">
           <input type="hidden" name="_captcha" value="false">
-          <input type="hidden" name="_next" value="https://website-mind-echo.vercel.app/?submitted=1#contact">
+          <input type="hidden" name="_next" value="https://www.mindecho.net/?submitted=1#contact">
           <input type="text" name="_honey" style="display:none">
           <div class="grid gap-4">
             <div>
@@ -190,10 +191,21 @@
         const enclosure = item.querySelector('enclosure');
         const audioUrl = enclosure?.getAttribute('url') || '';
 
-        const itunesImg = item.querySelector('itunes\\:image')?.getAttribute('href');
-        const mediaThumb = item.querySelector('media\\:thumbnail, media\\:content');
-        const mediaUrl = mediaThumb?.getAttribute('url');
-        const imageUrl = itunesImg || mediaUrl || channelImage;
+        // Episode artwork: try several sources (per-episode first)
+        let imageUrl = '';
+        const itunesImg = item.querySelector('itunes\:image')?.getAttribute('href');
+        const mediaUrl = item.querySelector('media\:thumbnail')?.getAttribute('url') || item.querySelector('media\:content')?.getAttribute('url');
+        if (itunesImg) imageUrl = itunesImg; else if (mediaUrl) imageUrl = mediaUrl; else {
+          const htmlBlob = item.querySelector('content\:encoded')?.textContent || item.querySelector('description')?.textContent || '';
+          if (htmlBlob) {
+            try {
+              const htmlDoc = new DOMParser().parseFromString(htmlBlob, 'text/html');
+              const imgEl = htmlDoc.querySelector('img');
+              if (imgEl) imageUrl = imgEl.getAttribute('src') || '';
+            } catch (e) {}
+          }
+        }
+        if (!imageUrl) imageUrl = channelImage;
 
         // Card
         const card = document.createElement('article');
@@ -213,7 +225,8 @@
             <h3 class="text-lg font-semibold line-clamp-2 hover:underline decoration-neutral-300 hover:decoration-transparent">${title}</h3>
           </a>
           <div class="mt-1 text-xs text-neutral-500">${pubDate}</div>
-          <p class="mt-3 text-sm text-neutral-600 line-clamp-4">${desc}</p>
+          <p class="episode-desc mt-3 text-sm text-neutral-600 line-clamp-4">${desc}</p>
+          <button type="button" class="read-more mt-2 text-sm underline brand">Read more</button>
         `;
 
         const playerWrap = document.createElement('div');
@@ -227,6 +240,23 @@
           `;
         } else {
           playerWrap.innerHTML = `<a href="${link}" target="_blank" rel="noopener" class="text-sm underline">Listen on your platform</a>`;
+        }
+
+        // Read more toggler
+        const descEl = body.querySelector('.episode-desc');
+        const btn = body.querySelector('.read-more');
+        if (btn && descEl) {
+          if ((desc || '').length < 240) btn.classList.add('hidden');
+          btn.addEventListener('click', () => {
+            const clamped = descEl.classList.contains('line-clamp-4');
+            if (clamped) {
+              descEl.classList.remove('line-clamp-4');
+              btn.textContent = 'Read less';
+            } else {
+              descEl.classList.add('line-clamp-4');
+              btn.textContent = 'Read more';
+            }
+          });
         }
 
         card.appendChild(body);
