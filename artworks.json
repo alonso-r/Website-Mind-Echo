@@ -2,5 +2,7 @@
   "byGuid": {},
   "byTitle": [
     { "match": "Combining Purpose with Profit", "image": "/artworks/episode-1.jpg" }
+    { "match": "Gunnar Lüttgau",               "image": "/artworks/episode-2.jpg" },
+    { "match": "Arne Wolfewicz",                  "image": "/artworks/episode-3.jpg" }
   ]
 }
