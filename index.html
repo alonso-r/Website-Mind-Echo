@@ -135,6 +135,15 @@
     const statusEl = document.getElementById('feed-status');
     const gridEl = document.getElementById('episodes-grid');
 
+    // Optional overrides loaded from /artworks.json
+    let ART_OVERRIDES = { byGuid: {}, byTitle: [] };
+    async function loadOverrides(){
+      try {
+        const res = await fetch('/artworks.json', { cache: 'no-store' });
+        if (res.ok) ART_OVERRIDES = await res.json();
+      } catch(e) { /* ignore */ }
+    }
+
     // Map of per-episode artwork scraped from the Buzzsprout embed (title -> image URL)
     const EMBED_ARTWORKS = new Map();
     const normTitle = (s) => (s || '').toLowerCase().replace(/\s+/g,' ').trim();
@@ -189,6 +198,8 @@
       items.slice(0, 30).forEach((item) => {
         const title = item.querySelector('title')?.textContent?.trim() || 'Untitled Episode';
         const link = item.querySelector('link')?.textContent?.trim() || '#';
+        const guid = (item.querySelector('guid')?.textContent || '').trim();
+        const lowerTitle = title.toLowerCase();
         const pubDateRaw = item.querySelector('pubDate')?.textContent;
         const pubDate = pubDateRaw ? dateFmt.format(new Date(pubDateRaw)) : '';
         const desc = (item.querySelector('description')?.textContent || item.querySelector('content\\:encoded')?.textContent || '').replace(/<[^>]+>/g, '').trim();
@@ -209,10 +220,21 @@
             } catch (e) {}
           }
         }
+        // Apply manual overrides (preferred)
+        if (!imageUrl && ART_OVERRIDES?.byGuid && ART_OVERRIDES.byGuid[guid]) {
+          imageUrl = ART_OVERRIDES.byGuid[guid];
+        }
+        if (!imageUrl && Array.isArray(ART_OVERRIDES?.byTitle)) {
+          for (const r of ART_OVERRIDES.byTitle) {
+            if ((r?.match || '') && lowerTitle.includes(String(r.match).toLowerCase())) { imageUrl = r.image; break; }
+          }
+        }
+        // Fallback to artwork found inside the Buzzsprout embed
         if (!imageUrl) {
           const art = EMBED_ARTWORKS.get(normTitle(title));
           if (art) imageUrl = art;
         }
+        // Final fallback to channel artwork
         if (!imageUrl) imageUrl = channelImage;
 
         // Card
@@ -277,7 +299,7 @@
       });
     }
 
-    loadFeed();
+    (async function init(){ await loadOverrides(); await loadFeed(); })();
 
     // Show success message after redirect from form
     try { const params = new URLSearchParams(location.search); if (params.get('submitted') === '1') { const fs = document.getElementById('form-status'); if (fs) fs.classList.remove('hidden'); } } catch(e) {}
