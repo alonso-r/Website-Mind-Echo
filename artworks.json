@@ -1,8 +1,6 @@
 {
-  "byGuid": {
-    // "PASTE_GUID_HERE": "/artworks/episode-1.jpg"
-  },
+  "byGuid": {},
   "byTitle": [
-    { "match": "Episode #1", "image": "/artworks/episode-1.jpg" }
+    { "match": "Combining Purpose with Profit", "image": "/artworks/episode-1.jpg" }
   ]
 }
