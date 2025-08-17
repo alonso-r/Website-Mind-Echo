@@ -1,7 +1,7 @@
 {
   "byGuid": {},
   "byTitle": [
-    { "match": "Combining Purpose with Profit", "image": "/artworks/episode-1.jpg" }
+    { "match": "Combining Purpose with Profit", "image": "/artworks/episode-1.jpg" },
     { "match": "From Corporate Life",               "image": "/artworks/episode-2.jpg" },
     { "match": "How AI Businesses",                  "image": "/artworks/episode-3.jpg" }
   ]
