@@ -20,7 +20,6 @@
   <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-neutral-200">
     <div class="max-w-6xl mx-auto px-4 flex items-center justify-between h-16">
       <a href="#top" class="flex items-center gap-3">
-        <!-- Logo: place /logo.png in the repo root -->
         <div class="w-10 h-10 rounded-xl overflow-hidden bg-white border border-neutral-200">
           <img src="/logo.png" alt="Mind Echo logo" class="h-full w-full object-contain" />
         </div>
@@ -56,7 +55,7 @@
     </div>
   </section>
 
-  <!-- EPISODES (from RSS via Vercel function) -->
+  <!-- EPISODES -->
   <section id="episodes" class="border-t border-neutral-200 bg-white">
     <div class="max-w-6xl mx-auto px-4 py-12 md:py-16">
       <div class="flex items-end justify-between gap-6 mb-6">
@@ -68,7 +67,7 @@
     </div>
   </section>
 
-  <!-- SUBSCRIBE (blue banner + brand-color buttons) -->
+  <!-- SUBSCRIBE -->
   <section id="subscribe" class="bg-brand text-white">
     <div class="max-w-6xl mx-auto px-4 py-12 md:py-16 grid md:grid-cols-2 gap-10 items-center">
       <div>
@@ -85,7 +84,7 @@
     </div>
   </section>
 
-  <!-- CONTACT (centered form only) -->
+  <!-- CONTACT -->
   <section id="contact" class="bg-white">
     <div class="max-w-6xl mx-auto px-4 py-12 md:py-16">
       <div class="max-w-xl mx-auto">
@@ -135,7 +134,7 @@
     const statusEl = document.getElementById('feed-status');
     const gridEl = document.getElementById('episodes-grid');
 
-    // Optional overrides loaded from /artworks.json
+    // Optional overrides loaded from /artworks.json (safe no-op if missing)
     let ART_OVERRIDES = { byGuid: {}, byTitle: [] };
     async function loadOverrides(){
       try {
@@ -143,47 +142,6 @@
         if (res.ok) ART_OVERRIDES = await res.json();
       } catch(e) { /* ignore */ }
     }
-
-    // Map of per-episode artwork scraped from the Buzzsprout embed (title -> image URL)
-    const EMBED_ARTWORKS = new Map();
-    
-    // Helpers for automatic artwork resolution
-    function slugify(s){
-      return (s || '').toLowerCase()
-        .replace(/[^a-z0-9]+/g,'-')
-        .replace(/(^-|-$)/g,'');
-    }
-
-    // Apply embed artwork to already-rendered cards
-    function applyEmbedArtworks(){
-      try {
-        gridEl.querySelectorAll('article').forEach(card => {
-          const title = card.querySelector('h3')?.textContent || '';
-          const art = EMBED_ARTWORKS.get(normTitle(title));
-          if (!art) return;
-          const img = card.querySelector('img');
-          if (img && img.getAttribute('src') !== art) {
-            img.setAttribute('src', art);
-          }
-        });
-      } catch(e) {}
-    }
-
-    // Try a list of image URLs until one loads
-    function setImageFromCandidates(imgEl, urls, finalFallback){
-      const list = (urls || []).filter(Boolean);
-      let i = 0;
-      const tryNext = () => {
-        if (i >= list.length) { if (finalFallback) imgEl.src = finalFallback; return; }
-        const test = new Image();
-        test.onload = () => { imgEl.src = list[i]; };
-        test.onerror = () => { i += 1; tryNext(); };
-        test.referrerPolicy = 'no-referrer';
-        test.src = list[i];
-      };
-      tryNext();
-    }
-    const normTitle = (s) => (s || '').toLowerCase().replace(/\s+/g,' ').trim();
 
     async function fetchText(url) {
       const res = await fetch(url);
@@ -212,15 +170,11 @@
 
       let items = Array.from(xml.querySelectorAll('item'));
 
-      // Hide teaser by title or GUID
+      // Hide teaser by title
       const HIDE_TITLES = ['teaser'];
-      const HIDE_GUIDS = [];
       items = items.filter((item) => {
         const t = (item.querySelector('title')?.textContent || '').toLowerCase();
-        const guid = (item.querySelector('guid')?.textContent || '').trim();
-        const byTitle = HIDE_TITLES.some(x => x && t.includes(x));
-        const byGuid = HIDE_GUIDS.length ? HIDE_GUIDS.includes(guid) : false;
-        return !(byTitle || byGuid);
+        return !HIDE_TITLES.some(x => x && t.includes(x));
       });
 
       if (!items.length) {
@@ -237,18 +191,17 @@
         const link = item.querySelector('link')?.textContent?.trim() || '#';
         const guid = (item.querySelector('guid')?.textContent || '').trim();
         const lowerTitle = title.toLowerCase();
-        const epNum = item.querySelector('itunes\:episode')?.textContent?.trim();
         const pubDateRaw = item.querySelector('pubDate')?.textContent;
         const pubDate = pubDateRaw ? dateFmt.format(new Date(pubDateRaw)) : '';
         const desc = (item.querySelector('description')?.textContent || item.querySelector('content\\:encoded')?.textContent || '').replace(/<[^>]+>/g, '').trim();
         const enclosure = item.querySelector('enclosure');
         const audioUrl = enclosure?.getAttribute('url') || '';
 
-        // Episode artwork: try several sources (per-episode first)
+        // Episode artwork from RSS (simple + stable)
         let imageUrl = '';
         const itunesImg = item.querySelector('itunes\\:image')?.getAttribute('href');
-        const mediaUrl = item.querySelector('media\\:thumbnail')?.getAttribute('url') || item.querySelector('media\\:content')?.getAttribute('url');
-        if (itunesImg) imageUrl = itunesImg; else if (mediaUrl) imageUrl = mediaUrl; else {
+        const mediaThumb = item.querySelector('media\\:thumbnail')?.getAttribute('url') || item.querySelector('media\\:content')?.getAttribute('url');
+        if (itunesImg) imageUrl = itunesImg; else if (mediaThumb) imageUrl = mediaThumb; else {
           const htmlBlob = item.querySelector('content\\:encoded')?.textContent || item.querySelector('description')?.textContent || '';
           if (htmlBlob) {
             try {
@@ -258,24 +211,16 @@
             } catch (e) {}
           }
         }
-        // Apply manual overrides (preferred)
-        if (!imageUrl && ART_OVERRIDES?.byGuid && ART_OVERRIDES.byGuid[guid]) {
-          imageUrl = ART_OVERRIDES.byGuid[guid];
-        }
+        // Manual overrides (optional)
+        if (!imageUrl && ART_OVERRIDES?.byGuid && ART_OVERRIDES.byGuid[guid]) imageUrl = ART_OVERRIDES.byGuid[guid];
         if (!imageUrl && Array.isArray(ART_OVERRIDES?.byTitle)) {
           for (const r of ART_OVERRIDES.byTitle) {
             if ((r?.match || '') && lowerTitle.includes(String(r.match).toLowerCase())) { imageUrl = r.image; break; }
           }
         }
-        // Fallback to artwork found inside the Buzzsprout embed
-        if (!imageUrl) {
-          const art = EMBED_ARTWORKS.get(normTitle(title));
-          if (art) imageUrl = art;
-        }
-        // Final fallback to channel artwork
         if (!imageUrl) imageUrl = channelImage;
 
-        // Card
+        // Card (left thumbnail layout)
         const card = document.createElement('article');
         card.className = 'rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm flex flex-col';
 
@@ -284,40 +229,8 @@
 
         const thumb = document.createElement('div');
         thumb.className = 'w-24 h-24 min-w-[6rem] rounded-xl overflow-hidden bg-neutral-100 flex-shrink-0';
-        thumb.innerHTML = `<img alt="${title} artwork" class="w-full h-full object-cover" loading="lazy">`;
-        const imgTag = thumb.querySelector('img');
+        thumb.innerHTML = imageUrl ? `<img src="${imageUrl}" alt="${title} artwork" class="w-full h-full object-cover" loading="lazy">` : '';
         topRow.appendChild(thumb);
-
-        // Build candidate list in priority order
-        const embedArt = EMBED_ARTWORKS.get(normTitle(title)) || null;
-
-        // JSON overrides
-        const jsonByGuid = (ART_OVERRIDES?.byGuid && ART_OVERRIDES.byGuid[guid]) || null;
-        let jsonByTitle = null;
-        if (Array.isArray(ART_OVERRIDES?.byTitle)) {
-          for (const r of ART_OVERRIDES.byTitle) {
-            if ((r?.match || '') && lowerTitle.includes(String(r.match).toLowerCase())) { jsonByTitle = r.image; break; }
-          }
-        }
-
-        // Local naming conventions
-        const titleSlug = slugify(title);
-        const localCandidates = [];
-        if (guid) {
-          localCandidates.push(`/artworks/${guid}.jpg`, `/artworks/${guid}.png`, `/artworks/${guid}.jpeg`, `/artworks/${guid}.webp`);
-        }
-        if (epNum) {
-          localCandidates.push(`/artworks/episode-${epNum}.jpg`, `/artworks/episode-${epNum}.png`, `/artworks/episode-${epNum}.jpeg`, `/artworks/episode-${epNum}.webp`);
-        }
-        if (titleSlug) {
-          localCandidates.push(`/artworks/${titleSlug}.jpg`, `/artworks/${titleSlug}.png`, `/artworks/${titleSlug}.jpeg`, `/artworks/${titleSlug}.webp`);
-        }
-
-        // RSS candidates (what the feed already gave us)
-        const rssCandidates = [imageUrl];
-
-        // Try candidates and fall back to channel image
-        setImageFromCandidates(imgTag, [jsonByGuid, jsonByTitle, ...rssCandidates, ...localCandidates, embedArt], channelImage);
 
         const body = document.createElement('div');
         body.className = 'flex-1 flex flex-col';
@@ -365,7 +278,6 @@
         card.appendChild(playerWrap);
         gridEl.appendChild(card);
       });
-      applyEmbedArtworks();
     }
 
     (async function init(){ await loadOverrides(); await loadFeed(); })();
@@ -373,34 +285,13 @@
     // Show success message after redirect from form
     try { const params = new URLSearchParams(location.search); if (params.get('submitted') === '1') { const fs = document.getElementById('form-status'); if (fs) fs.classList.remove('hidden'); } } catch(e) {}
 
-    // Hide teaser episode in Buzzsprout embed (best-effort)
-    (function enhanceBuzzsproutEmbed(){
+    // Hide teaser in Buzzsprout embed only (keep this very simple)
+    (function hideInBuzzsproutPlayer(){
       const container = document.getElementById('bzplayer');
       if (!container) return;
       const HIDE_TITLES = ['teaser'];
       const matches = (txt) => HIDE_TITLES.some(t => txt.includes(t));
-
-      // Collect per-episode artwork from the embed and store in EMBED_ARTWORKS
-      const collectArtworks = () => {
-        try {
-          container.querySelectorAll('[data-file-name],[original-url]').forEach(el => {
-            const url = el.getAttribute('data-file-name') || el.getAttribute('original-url');
-            if (!url) return;
-            const row = el.closest('li, .episode, .buzzsprout-player-episode, .bsp-episode, .buzzsprout-episode') || el.parentElement;
-            let title = '';
-            if (row) {
-              const tEl = row.querySelector('h1,h2,h3,h4,.title,a');
-              title = (tEl?.textContent || row.textContent || '').trim();
-            }
-            title = normTitle(title).slice(0,140);
-            if (title) EMBED_ARTWORKS.set(title, url);
-          });
-          applyEmbedArtworks();
-        } catch(e) { /* ignore */ }
-      };
-
       const scan = () => {
-        // Hide teaser rows
         const all = container.querySelectorAll('*');
         all.forEach(node => {
           const txt = (node.textContent || '').toLowerCase();
@@ -409,9 +300,7 @@
             if (row) row.style.display = 'none';
           }
         });
-        collectArtworks();
       };
-
       const obs = new MutationObserver(scan);
       obs.observe(container, { childList: true, subtree: true });
       scan();
