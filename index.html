@@ -146,24 +146,15 @@
 
     // Map of per-episode artwork scraped from the Buzzsprout embed (title -> image URL)
     const EMBED_ARTWORKS = new Map();
-    const normTitle = (s) => (s || '').toLowerCase().replace(/\s+/g,' ').trim();
+    
+    // Helpers for automatic artwork resolution
+    function slugify(s){
+      return (s || '').toLowerCase()
+        .replace(/[^a-z0-9]+/g,'-')
+        .replace(/(^-|-$)/g,'');
+    }
+
     // Apply embed artwork to already-rendered cards
-function applyEmbedArtworks(){
-  try {
-    gridEl.querySelectorAll('article').forEach(card => {
-      const title = card.querySelector('h3')?.textContent || '';
-      const art = EMBED_ARTWORKS.get(normTitle(title));
-      if (!art) return;
-      const img = card.querySelector('img');
-      if (img && img.getAttribute('src') !== art) {
-        img.setAttribute('src', art);
-      }
-    });
-  } catch(e) {}
-}
-
-
-    // Apply embed artwork to already-rendered cards (after the embed loads)
     function applyEmbedArtworks(){
       try {
         gridEl.querySelectorAll('article').forEach(card => {
@@ -175,8 +166,24 @@ function applyEmbedArtworks(){
             img.setAttribute('src', art);
           }
         });
-      } catch(e) { /* ignore */ }
+      } catch(e) {}
     }
+
+    // Try a list of image URLs until one loads
+    function setImageFromCandidates(imgEl, urls, finalFallback){
+      const list = (urls || []).filter(Boolean);
+      let i = 0;
+      const tryNext = () => {
+        if (i >= list.length) { if (finalFallback) imgEl.src = finalFallback; return; }
+        const test = new Image();
+        test.onload = () => { imgEl.src = list[i]; };
+        test.onerror = () => { i += 1; tryNext(); };
+        test.referrerPolicy = 'no-referrer';
+        test.src = list[i];
+      };
+      tryNext();
+    }
+    const normTitle = (s) => (s || '').toLowerCase().replace(/\s+/g,' ').trim();
 
     async function fetchText(url) {
       const res = await fetch(url);
@@ -230,6 +237,7 @@ function applyEmbedArtworks(){
         const link = item.querySelector('link')?.textContent?.trim() || '#';
         const guid = (item.querySelector('guid')?.textContent || '').trim();
         const lowerTitle = title.toLowerCase();
+        const epNum = item.querySelector('itunes\:episode')?.textContent?.trim();
         const pubDateRaw = item.querySelector('pubDate')?.textContent;
         const pubDate = pubDateRaw ? dateFmt.format(new Date(pubDateRaw)) : '';
         const desc = (item.querySelector('description')?.textContent || item.querySelector('content\\:encoded')?.textContent || '').replace(/<[^>]+>/g, '').trim();
@@ -275,11 +283,41 @@ function applyEmbedArtworks(){
         topRow.className = 'p-5 flex gap-4 items-start';
 
         const thumb = document.createElement('div');
-        thumb.className = 'thumb w-24 h-24 min-w-[6rem] rounded-xl overflow-hidden bg-neutral-100 flex-shrink-0';
-        thumb.innerHTML = imageUrl
-          ? `<img src="${imageUrl}" alt="${title} artwork" class="w-full h-full object-cover" loading="lazy">`
-          : '';
+        thumb.className = 'w-24 h-24 min-w-[6rem] rounded-xl overflow-hidden bg-neutral-100 flex-shrink-0';
+        thumb.innerHTML = `<img alt="${title} artwork" class="w-full h-full object-cover" loading="lazy">`;
+        const imgTag = thumb.querySelector('img');
         topRow.appendChild(thumb);
+
+        // Build candidate list in priority order
+        const embedArt = EMBED_ARTWORKS.get(normTitle(title)) || null;
+
+        // JSON overrides
+        const jsonByGuid = (ART_OVERRIDES?.byGuid && ART_OVERRIDES.byGuid[guid]) || null;
+        let jsonByTitle = null;
+        if (Array.isArray(ART_OVERRIDES?.byTitle)) {
+          for (const r of ART_OVERRIDES.byTitle) {
+            if ((r?.match || '') && lowerTitle.includes(String(r.match).toLowerCase())) { jsonByTitle = r.image; break; }
+          }
+        }
+
+        // Local naming conventions
+        const titleSlug = slugify(title);
+        const localCandidates = [];
+        if (guid) {
+          localCandidates.push(`/artworks/${guid}.jpg`, `/artworks/${guid}.png`, `/artworks/${guid}.jpeg`, `/artworks/${guid}.webp`);
+        }
+        if (epNum) {
+          localCandidates.push(`/artworks/episode-${epNum}.jpg`, `/artworks/episode-${epNum}.png`, `/artworks/episode-${epNum}.jpeg`, `/artworks/episode-${epNum}.webp`);
+        }
+        if (titleSlug) {
+          localCandidates.push(`/artworks/${titleSlug}.jpg`, `/artworks/${titleSlug}.png`, `/artworks/${titleSlug}.jpeg`, `/artworks/${titleSlug}.webp`);
+        }
+
+        // RSS candidates (what the feed already gave us)
+        const rssCandidates = [imageUrl];
+
+        // Try candidates and fall back to channel image
+        setImageFromCandidates(imgTag, [jsonByGuid, jsonByTitle, ...rssCandidates, ...localCandidates, embedArt], channelImage);
 
         const body = document.createElement('div');
         body.className = 'flex-1 flex flex-col';
@@ -327,6 +365,7 @@ function applyEmbedArtworks(){
         card.appendChild(playerWrap);
         gridEl.appendChild(card);
       });
+      applyEmbedArtworks();
     }
 
     (async function init(){ await loadOverrides(); await loadFeed(); })();
@@ -334,12 +373,12 @@ function applyEmbedArtworks(){
     // Show success message after redirect from form
     try { const params = new URLSearchParams(location.search); if (params.get('submitted') === '1') { const fs = document.getElementById('form-status'); if (fs) fs.classList.remove('hidden'); } } catch(e) {}
 
-    // Enhance Buzzsprout embed: hide teaser + harvest per-episode artwork
+    // Hide teaser episode in Buzzsprout embed (best-effort)
     (function enhanceBuzzsproutEmbed(){
       const container = document.getElementById('bzplayer');
       if (!container) return;
       const HIDE_TITLES = ['teaser'];
-      const matches = (txt) => HIDE_TITLES.some(t => t.includes && txt.includes(t));
+      const matches = (txt) => HIDE_TITLES.some(t => txt.includes(t));
 
       // Collect per-episode artwork from the embed and store in EMBED_ARTWORKS
       const collectArtworks = () => {
@@ -356,7 +395,6 @@ function applyEmbedArtworks(){
             title = normTitle(title).slice(0,140);
             if (title) EMBED_ARTWORKS.set(title, url);
           });
-          // Immediately apply to any already-rendered cards
           applyEmbedArtworks();
         } catch(e) { /* ignore */ }
       };
