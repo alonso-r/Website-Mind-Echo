@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Episode GUIDs | Mind Echo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-neutral-50 text-neutral-900">
+  <main class="max-w-4xl mx-auto p-6">
+    <h1 class="text-2xl font-semibold mb-4">Episode GUIDs</h1>
+    <p class="text-sm text-neutral-600 mb-6">This page reads <code class="px-1 py-0.5 bg-neutral-200/60 rounded">/api/rss</code> and lists all episodes with their GUIDs. Click a copy button to copy a ready-made mapping for <code>artworks.json</code>.</p>
+
+    <div id="status" class="text-sm mb-4"></div>
+    <div class="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+      <table class="min-w-full text-sm">
+        <thead class="bg-neutral-100 text-neutral-700">
+          <tr>
+            <th class="text-left p-3">Date</th>
+            <th class="text-left p-3">Title</th>
+            <th class="text-left p-3">GUID</th>
+            <th class="text-left p-3">Action</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const rowsEl = document.getElementById('rows');
+
+    function fmt(d){ try { return new Date(d).toLocaleDateString(); } catch(e) { return d||''; } }
+
+    async function load(){
+      statusEl.textContent = 'Loading…';
+      try {
+        const res = await fetch('/api/rss');
+        const xmlText = await res.text();
+        const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+        const items = [...xml.querySelectorAll('item')];
+        statusEl.textContent = '';
+        if (!items.length) { rowsEl.innerHTML = '<tr><td colspan=4 class="p-4">No items.</td></tr>'; return; }
+        const df = new Intl.DateTimeFormat(undefined, {year:'numeric', month:'short', day:'numeric'});
+        rowsEl.innerHTML = items.map(it => {
+          const title = it.querySelector('title')?.textContent?.trim() || 'Untitled';
+          const guid = it.querySelector('guid')?.textContent?.trim() || '';
+          const date = it.querySelector('pubDate')?.textContent || '';
+          const line = JSON.stringify({ [guid]: `/artworks/${guid}.jpg` }).slice(1, -1);
+          return `
+            <tr class="border-t border-neutral-200 align-top">
+              <td class="p-3 whitespace-nowrap">${fmt(date)}</td>
+              <td class="p-3">${title}</td>
+              <td class="p-3 text-xs text-neutral-600">${guid}</td>
+              <td class="p-3">
+                <button data-line='${line.replace(/'/g, "&#39;")}' class="copy px-3 py-1.5 text-xs rounded bg-neutral-900 text-white">Copy byGuid</button>
+              </td>
+            </tr>`
+        }).join('');
+
+        document.querySelectorAll('button.copy').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const line = btn.getAttribute('data-line');
+            try {
+              await navigator.clipboard.writeText(line);
+              btn.textContent = 'Copied!';
+              setTimeout(() => btn.textContent = 'Copy byGuid', 1500);
+            } catch(e) {
+              alert('Copy failed.');
+            }
+          });
+        });
+      } catch(e) {
+        statusEl.textContent = 'Failed to load /api/rss';
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>
